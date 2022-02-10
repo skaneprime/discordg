@@ -2,9 +2,9 @@ import { Awaitable, ClientEvents } from "discord.js";
 import { Client } from "../../..";
 import { ServiceObject as SO } from "..";
 
-export type EventsListeners<T extends SO> = {
+export type EventsListeners = {
 	[K in keyof ClientEvents as `on${Capitalize<K>}`]?: Dingir.utils.function.Any<
-		[...PluginParameters<T>, ...ClientEvents[K]],
+		ClientEvents[K], //[...],
 		void
 	>;
 };
@@ -18,5 +18,9 @@ export type PluginParameters<T extends SO> = [
 
 export type Plugin<T extends SO = SO> = Dingir.utils.function.Any<
 	PluginParameters<T>,
-	Awaitable<EventsListeners<T>>
+	Awaitable<EventsListeners>
 >;
+
+/**
+ * Database ->
+ */

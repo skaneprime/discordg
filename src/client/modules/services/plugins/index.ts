@@ -7,7 +7,9 @@ import { Logger } from "../../../../utils/logger";
 import { Client } from "../../..";
 import { ServiceObject } from "..";
 
-export { Plugin, EventsListeners }
+export { Plugin, EventsListeners };
+
+const PLUGINS = `${chalk.yellow(`[Plugins]`)}`
 
 class PluginWatcher<T extends ServiceObject> {
 	private watcher: chokidar.FSWatcher;
@@ -40,7 +42,7 @@ class PluginWatcher<T extends ServiceObject> {
 	}
 
 	private add(path: string, stats?: fs.Stats) {
-		Logger.debug(stats);
+		Logger.trace(stats);
 		const plugin = this.importPlugin(path);
 		if (plugin) {
 			this.eventEmitter.emit("add", path, plugin);
@@ -48,7 +50,7 @@ class PluginWatcher<T extends ServiceObject> {
 	}
 
 	private change(path: string, stats?: fs.Stats) {
-		Logger.debug(stats);
+		Logger.trace(stats);
 		const plugin = this.importPlugin(path);
 		if (plugin) {
 			this.eventEmitter.emit("change", path, plugin);
@@ -75,40 +77,40 @@ interface PluginsOptions<T extends ServiceObject> {
 export class Plugins<T extends ServiceObject = ServiceObject> {
 	private communication = new EventEmitter();
 	private watcher!: PluginWatcher<T>;
-	private plugins: Record<string, { plugin: Plugin<T>; listeners: EventsListeners<T> }> = {};
+	private plugins: Record<string, { plugin: Plugin<T>; listeners: EventsListeners }> = {};
 
 	constructor(private options: PluginsOptions<T>) {
 		this.watcher = new PluginWatcher(options.folder);
 
 		this.watcher.on("add", async (path, plugin) => {
 			Logger.debug(
-				`${chalk.yellowBright(`[Plugins]`)}: Loading ${chalk.magentaBright("new")} plugin`,
+				`${PLUGINS} Loading ${chalk.magentaBright("new")} plugin`,
 			);
 			await this.add(path, plugin).catch((error) => {
 				Logger.error(
-					`${chalk.yellowBright(`[Plugins]`)}: An error occured while loading plugin`,
+					`${PLUGINS} An error occured while loading plugin`,
 					error,
 				);
 			});
 			Logger.info(
-				`${chalk.yellowBright(`[Plugins]`)}: ${chalk.magentaBright("New")} plugin loaded`,
+				`${PLUGINS} ${chalk.magentaBright("New")} plugin loaded`,
 			);
 		});
 
 		this.watcher.on("change", async (path, plugin) => {
-			Logger.debug(`${chalk.yellowBright(`[Plugins]`)}: Updating plugin`);
+			Logger.debug(`${PLUGINS} Updating plugin`);
 			await this.change(path, plugin).catch((error) => {
 				Logger.error(
-					`${chalk.yellowBright(`[Plugins]`)}: An error occured while updating plugin`,
+					`${PLUGINS} An error occured while updating plugin`,
 					error,
 				);
 			});
-			Logger.info(`${chalk.yellowBright(`[Plugins]`)}: Plugin updated`);
+			Logger.info(`${PLUGINS} Plugin updated`);
 		});
 
 		this.watcher.on("unlink", async (path) => {
 			Logger.debug(
-				`${chalk.yellowBright(`[Plugins]`)}: Unloading plugin (${chalk.greenBright(`"${path}"`)})`,
+				`${PLUGINS} Unloading plugin (${chalk.greenBright(`"${path}"`)})`,
 			);
 			await this.unlink(path).catch((error) => {
 				Logger.error(
@@ -119,7 +121,7 @@ export class Plugins<T extends ServiceObject = ServiceObject> {
 				);
 			});
 			Logger.info(
-				`${chalk.yellowBright(`[Plugins]`)}: Plugin unloaded (${chalk.greenBright(`"${path}"`)})`,
+				`${PLUGINS} Plugin unloaded (${chalk.greenBright(`"${path}"`)})`,
 			);
 		});
 	}
@@ -134,9 +136,9 @@ export class Plugins<T extends ServiceObject = ServiceObject> {
 
 		for (const key in listeners) {
 			const listener = listeners[key as keyof typeof listeners] as Dingir.utils.function.Any;
-			const eventKey = Dingir.utils.string.firstLetterToLowerCase(key);
-			Logger.trace(`${chalk.yellowBright(`[Plugins]`)}: Adding "${eventKey}" event listener`);
-			this.options.client.addListener(eventKey, listener);
+			const eventKey = Dingir.utils.string.firstLetterToLowerCase(key.slice(2));
+			Logger.trace(`${PLUGINS} Adding "${eventKey}" event listener`);
+			this.options.client.on(eventKey, listener);
 		}
 
 		this.plugins[path] = { plugin, listeners };
@@ -154,9 +156,9 @@ export class Plugins<T extends ServiceObject = ServiceObject> {
 
 		for (const key in listeners) {
 			const listener = listeners[key as keyof typeof listeners] as Dingir.utils.function.Any;
-			const eventKey = Dingir.utils.string.firstLetterToLowerCase(key);
-			Logger.trace(`${chalk.yellowBright(`[Plugins]`)}: Removing "${eventKey}" event listener`);
-			this.options.client.removeListener(eventKey, listener);
+			const eventKey = Dingir.utils.string.firstLetterToLowerCase(key.slice(2));
+			Logger.trace(`${PLUGINS} Removing "${eventKey}" event listener`);
+			this.options.client.off(eventKey, listener);
 		}
 
 		delete this.plugins[path];
@@ -169,10 +171,11 @@ export class Plugins<T extends ServiceObject = ServiceObject> {
 	}
 
 	getList() {
-		return Object.entries(this.plugins).map(([path, { plugin }]) => {
+		return Object.entries(this.plugins).map(([path, { plugin, listeners }]) => {
 			return {
 				name: plugin.name,
 				id: path,
+				listensTo: Object.keys(listeners),
 			};
 		});
 	}

@@ -13,6 +13,8 @@ import {
 import { Logger } from "../../../../utils/logger";
 import chalk from "chalk";
 
+const INTERACTIONS = chalk.yellowBright("[Interactions]")
+
 export class Interactions<T extends ServiceObject> {
 	private commands: Record<string, SlashCommand | ContextMenuCommand> = {};
 	private actionRows: Record<string, MessageActionRows> = {};
@@ -25,18 +27,30 @@ export class Interactions<T extends ServiceObject> {
 
 				if (!command.callback) {
 					return Logger.error(
-						`${interaction.commandName} for ${
+						`${INTERACTIONS} ${interaction.commandName} for ${
 							interaction.guildId || "global"
 						} doesn't have a callback.\nYou forgot to setCallback(function) !`,
 					);
 				}
 
 				if (command instanceof SlashCommand && interaction.isCommand()) {
-					command.callback(interaction, options.client);
+					Logger.debug(`${INTERACTIONS} SlashCommand "${interaction.commandName}" -> ${interaction.user.tag}`);
+					try {
+						await command.callback(interaction, options.client);
+					} catch (error) {
+						Logger.error(`${INTERACTIONS} SlashCommand "${interaction.commandName}"`, error);
+					}
 				}
 
 				if (command instanceof ContextMenuCommand && interaction.isContextMenu()) {
-					command.callback(interaction, options.client);
+					Logger.debug(
+						`${INTERACTIONS} ContextMenuCommand "${interaction.commandName}" -> ${interaction.user.tag}`,
+					);
+					try {
+						await command.callback(interaction, options.client);
+					} catch (error) {
+						Logger.error(`${INTERACTIONS} ContextMenuCommand "${interaction.commandName}"`, error);
+					}
 				}
 			}
 
@@ -52,7 +66,12 @@ export class Interactions<T extends ServiceObject> {
 							interaction.isButton() &&
 							interaction.customId == component.customId
 						) {
-							await component.callback(interaction, options.client);
+							Logger.debug(`${INTERACTIONS} ButtonComponent "${interaction.customId}" -> ${interaction.user.tag}`);
+							try {
+								await component.callback(interaction, options.client);
+							} catch (error) {
+								Logger.error(`${INTERACTIONS} ButtonComponent "${interaction.customId}"`, error);
+							}
 						}
 
 						if (
@@ -60,7 +79,14 @@ export class Interactions<T extends ServiceObject> {
 							interaction.isSelectMenu() &&
 							interaction.customId == component.customId
 						) {
-							await component.callback(interaction, options.client);
+							Logger.debug(
+								`${INTERACTIONS} SelectMenuComponent "${interaction.customId}" -> ${interaction.user.tag}`,
+							);
+							try {
+								await component.callback(interaction, options.client);
+							} catch (error) {
+								Logger.error(`${INTERACTIONS} SelectMenuComponent "${interaction.customId}"`, error);
+							}
 						}
 					}
 				}
@@ -95,33 +121,33 @@ export class Interactions<T extends ServiceObject> {
 			: this.options.client.application || {};
 
 		if (!commands) {
-			return Logger.error("Failed to register command: No commands object");
+			return Logger.error(`${INTERACTIONS} Failed to register command: No commands object`);
 		}
 
 		this.commands[`${command.name}-${command.guildId || "global"}`] = command;
 
 		if (!fetchedCommand || !compareCommand(command, fetchedCommand)) {
 			// Update or Create Command
-			Logger.info(`${!fetchedCommand ? "Creating" : "Updating"} ${commandName}`);
+			Logger.info(`${INTERACTIONS} ${!fetchedCommand ? "Creating" : "Updating"} ${commandName}`);
 			return await commands.create(command.toJSON()); // Command#create Also updates
 		}
 
-		return Logger.info(`${commandName} is up-to-date`);
+		return Logger.info(`${INTERACTIONS} ${commandName} is up-to-date`);
 	}
 
 	private async registerRows(actionRows: MessageActionRows) {
 		const channel = await this.options.client.channels.fetch(actionRows.path.channelId);
 
 		if (!channel?.isText()) {
-			return Logger.error("Failed to register action rows: Non text channel");
+			return Logger.error(`${INTERACTIONS} Failed to register action rows: Non text channel`);
 		}
 
 		const message = await channel.messages.fetch(actionRows.path.messageId);
 
 		await message.edit({ components: actionRows.rows }).catch((error) => {
-			Logger.error("Failed to register action rows:", error);
+			Logger.error(`${INTERACTIONS} Failed to register action rows:`, error);
 		});
-
+		Logger.info(`${INTERACTIONS} registered rows`);
 		this.actionRows[actionRows.path.toString()] = actionRows;
 	}
 
@@ -144,7 +170,7 @@ function compareCommand(
 ) {
 	const commandJSON = commandBuilder.toJSON();
 	Logger.debug(
-		`Comparing commands for changes\n-> ${chalk.yellow(false)} = No changes, ${chalk.yellow(
+		`${INTERACTIONS} Comparing commands for changes\n-> ${chalk.yellow(false)} = No changes, ${chalk.yellow(
 			true,
 		)} = altered\n Name:`,
 		commandBuilder.name != applicationCommand.name,
