@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "dingir-win.exe build --debug -d ./src/index.ts ./build/discord.dg -v 0.9.6",
+    "build": "npm run pretty & dingir-win.exe build --debug -d ./src/index.ts ./build/discord.dg -v 0.9.6",
     "test": "dingir-win.exe run ./test/index.ts",
     "pretty": "prettier --write src/**/*.ts",
     "eslint": "eslint . --ext .ts"

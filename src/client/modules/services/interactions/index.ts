@@ -13,7 +13,7 @@ import {
 import { Logger } from "../../../../utils/logger";
 import chalk from "chalk";
 
-const INTERACTIONS = chalk.yellowBright("[Interactions]")
+const INTERACTIONS = chalk.yellowBright("[Interactions]");
 
 export class Interactions<T extends ServiceObject> {
 	private commands: Record<string, SlashCommand | ContextMenuCommand> = {};
@@ -34,7 +34,9 @@ export class Interactions<T extends ServiceObject> {
 				}
 
 				if (command instanceof SlashCommand && interaction.isCommand()) {
-					Logger.debug(`${INTERACTIONS} SlashCommand "${interaction.commandName}" -> ${interaction.user.tag}`);
+					Logger.debug(
+						`${INTERACTIONS} SlashCommand "${interaction.commandName}" -> ${interaction.user.tag}`,
+					);
 					try {
 						await command.callback(interaction, options.client);
 					} catch (error) {
@@ -66,7 +68,9 @@ export class Interactions<T extends ServiceObject> {
 							interaction.isButton() &&
 							interaction.customId == component.customId
 						) {
-							Logger.debug(`${INTERACTIONS} ButtonComponent "${interaction.customId}" -> ${interaction.user.tag}`);
+							Logger.debug(
+								`${INTERACTIONS} ButtonComponent "${interaction.customId}" -> ${interaction.user.tag}`,
+							);
 							try {
 								await component.callback(interaction, options.client);
 							} catch (error) {
@@ -85,7 +89,10 @@ export class Interactions<T extends ServiceObject> {
 							try {
 								await component.callback(interaction, options.client);
 							} catch (error) {
-								Logger.error(`${INTERACTIONS} SelectMenuComponent "${interaction.customId}"`, error);
+								Logger.error(
+									`${INTERACTIONS} SelectMenuComponent "${interaction.customId}"`,
+									error,
+								);
 							}
 						}
 					}
@@ -170,9 +177,9 @@ function compareCommand(
 ) {
 	const commandJSON = commandBuilder.toJSON();
 	Logger.debug(
-		`${INTERACTIONS} Comparing commands for changes\n-> ${chalk.yellow(false)} = No changes, ${chalk.yellow(
-			true,
-		)} = altered\n Name:`,
+		`${INTERACTIONS} Comparing commands for changes\n-> ${chalk.yellow(
+			false,
+		)} = No changes, ${chalk.yellow(true)} = altered\n Name:`,
 		commandBuilder.name != applicationCommand.name,
 		"\n",
 

@@ -9,7 +9,7 @@ export interface ClinetOptions<T extends Modules.Services.ServiceObject> {
 	plugins?: {
 		folder?: string;
 	};
-	logLevels?: Parameters<Dingir.logger.LoggerService['disableLevel']>[0][]
+	logLevels?: Parameters<Dingir.logger.LoggerService["disableLevel"]>[0][];
 	client: Discord.ClientOptions;
 	token: string;
 }
@@ -26,8 +26,8 @@ export class Client<
 
 	static async Invoke<T extends Modules.Services.ServiceObject>(options: ClinetOptions<T>) {
 		const client = new Client<T>(options.client);
-		
-		options.logLevels?.forEach(level => Logger.enableLevel(level));
+
+		options.logLevels?.forEach((level) => Logger.enableLevel(level));
 
 		client.store = new Modules.Store.Module();
 		client.services = await Modules.Services.Module<T>(options.services, client, {

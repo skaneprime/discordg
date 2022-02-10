@@ -9,7 +9,7 @@ import { ServiceObject } from "..";
 
 export { Plugin, EventsListeners };
 
-const PLUGINS = `${chalk.yellow(`[Plugins]`)}`
+const PLUGINS = `${chalk.yellow(`[Plugins]`)}`;
 
 class PluginWatcher<T extends ServiceObject> {
 	private watcher: chokidar.FSWatcher;
@@ -83,35 +83,23 @@ export class Plugins<T extends ServiceObject = ServiceObject> {
 		this.watcher = new PluginWatcher(options.folder);
 
 		this.watcher.on("add", async (path, plugin) => {
-			Logger.debug(
-				`${PLUGINS} Loading ${chalk.magentaBright("new")} plugin`,
-			);
+			Logger.debug(`${PLUGINS} Loading ${chalk.magentaBright("new")} plugin`);
 			await this.add(path, plugin).catch((error) => {
-				Logger.error(
-					`${PLUGINS} An error occured while loading plugin`,
-					error,
-				);
+				Logger.error(`${PLUGINS} An error occured while loading plugin`, error);
 			});
-			Logger.info(
-				`${PLUGINS} ${chalk.magentaBright("New")} plugin loaded`,
-			);
+			Logger.info(`${PLUGINS} ${chalk.magentaBright("New")} plugin loaded`);
 		});
 
 		this.watcher.on("change", async (path, plugin) => {
 			Logger.debug(`${PLUGINS} Updating plugin`);
 			await this.change(path, plugin).catch((error) => {
-				Logger.error(
-					`${PLUGINS} An error occured while updating plugin`,
-					error,
-				);
+				Logger.error(`${PLUGINS} An error occured while updating plugin`, error);
 			});
 			Logger.info(`${PLUGINS} Plugin updated`);
 		});
 
 		this.watcher.on("unlink", async (path) => {
-			Logger.debug(
-				`${PLUGINS} Unloading plugin (${chalk.greenBright(`"${path}"`)})`,
-			);
+			Logger.debug(`${PLUGINS} Unloading plugin (${chalk.greenBright(`"${path}"`)})`);
 			await this.unlink(path).catch((error) => {
 				Logger.error(
 					`${chalk.yellowBright(
@@ -120,9 +108,7 @@ export class Plugins<T extends ServiceObject = ServiceObject> {
 					error,
 				);
 			});
-			Logger.info(
-				`${PLUGINS} Plugin unloaded (${chalk.greenBright(`"${path}"`)})`,
-			);
+			Logger.info(`${PLUGINS} Plugin unloaded (${chalk.greenBright(`"${path}"`)})`);
 		});
 	}
 
