@@ -2,7 +2,6 @@ node_modules
 build
 test
 logs
-./plugins
 dingir-win.exe
 dingir.d.ts
 plan.todo
