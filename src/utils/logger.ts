@@ -1,5 +1,4 @@
-export const Logger: Dingir.logger.LoggerService = Dingir.logger.create({
+export const Logger: Dingir.Logger.LoggerService = Dingir.Logger.create({
 	label: "DISCRD",
-	// debug: true,
 	// file: "./logs/discord.log"
-});
+}).enableLevel(1);
