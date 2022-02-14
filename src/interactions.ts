@@ -3,7 +3,7 @@ import * as Discord from "discord.js";
 import * as DiscordBuilders from "@discordjs/builders";
 import { ServiceArgs, ServiceObject } from "./client/modules/services";
 
-type InteractionCallback<I, T extends ServiceObject> = Dingir.utils.function.Any<
+type InteractionCallback<I, T extends ServiceObject> = Dingir.Utils.Function.Any<
 	[I, ...ServiceArgs<T>],
 	Discord.Awaitable<void>
 >;
@@ -23,26 +23,33 @@ function modifyClass<T extends new (...args: any[]) => any, K extends keyof Inst
 	}[`${Class.name}Modified`];
 }
 interface IApplicationCommand<I> {
-	guildId?: string;
+	guilds?: string[];
 	callback?: InteractionCallback<I, any>;
 
-	setGuild(guild: Discord.Guild | Discord.Snowflake): this;
+	setGuild(
+		guilds: Discord.Guild | Discord.Snowflake | Array<Discord.Guild | Discord.Snowflake>,
+	): this;
 	setCallback<T extends ServiceObject>(callback: InteractionCallback<I, T>): this;
 }
 function extendApplicationCommand<I>() {
-	return <C extends Dingir.utils.class.Any>(
+	return <C extends Dingir.Utils.Class.Any>(
 		Class: C,
-	): C & Dingir.utils.class.Any<any[], IApplicationCommand<I>> =>
+	): C & Dingir.Utils.Class.Any<any[], IApplicationCommand<I>> =>
 		class ApplicationCommand extends Class {
-			guildId?: string;
+			guilds?: string[];
 			callback!: InteractionCallback<I, any>;
 
 			constructor(...args: any[]) {
 				super(...args);
 			}
 
-			setGuild(guild: Discord.Guild | Discord.Snowflake): this {
-				this.guildId = guild instanceof Discord.Guild ? guild.id : guild;
+			setGuild(
+				guilds: Discord.Guild | Discord.Snowflake | Array<Discord.Guild | Discord.Snowflake>,
+			): this {
+				if (Array.isArray(guilds)) {
+					this.guilds = guilds.map((guild) => (guild instanceof Discord.Guild ? guild.id : guild));
+				} else this.guilds = guilds instanceof Discord.Guild ? [guilds.id] : [guilds];
+
 				return this;
 			}
 
@@ -67,9 +74,9 @@ interface IMessageComponent<I> {
 	setCallback<T extends ServiceObject>(callback: InteractionCallback<I, T>): this;
 }
 function extendMessageComponent<I>() {
-	return <C extends Dingir.utils.class.Any>(
+	return <C extends Dingir.Utils.Class.Any>(
 		Class: C,
-	): C & Dingir.utils.class.Any<any[], IMessageComponent<I>> =>
+	): C & Dingir.Utils.Class.Any<any[], IMessageComponent<I>> =>
 		class MessageComponent extends Class {
 			callback!: InteractionCallback<I, any>;
 
