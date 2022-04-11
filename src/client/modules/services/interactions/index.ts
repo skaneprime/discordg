@@ -8,164 +8,273 @@ import {
 	ContextMenuCommand,
 	ButtonComponent,
 	SelectMenuComponent,
-	MessageActionRows,
+	ActionRows,
+	ModalBuilder,
 } from "../../../../interactions";
-import { Logger } from "../../../../utils/logger";
+import logger from "../../../../utils/logger";
 import chalk from "chalk";
 
 const INTERACTIONS = chalk.yellowBright("[Interactions]");
 
 export class Interactions<T extends ServiceObject> {
 	private commands: Record<string, SlashCommand | ContextMenuCommand> = {};
-	private actionRows: Record<string, MessageActionRows> = {};
+	private actionRows: Record<string, ActionRows> = {};
+	private modals: Record<string, ModalBuilder> = {};
 
 	constructor(private options: { client: Client<T> }) {
 		options.client.on("interactionCreate", async (interaction) => {
-			if (interaction.isApplicationCommand()) {
-				const command =
-					this.commands[`${interaction.commandName}-${interaction.guildId || "global"}`];
+			if (interaction.isCommand()) {
+				const _showModal = interaction.showModal.bind(interaction);
+				interaction.showModal = async (modal: ModalBuilder) => {
+					this.modals[`${modal.toJSON().custom_id}-${interaction.user.id}`] = modal;
+					return _showModal(modal);
+				};
 
-				if (!command.callback) {
-					return Logger.error(
+				const command = this.commands[`${interaction.commandName}-${interaction.guildId || "global"}`];
+
+				if (!command?.callback) {
+					return logger.error(
 						`${INTERACTIONS} ${interaction.commandName} for ${
 							interaction.guildId || "global"
 						} doesn't have a callback.\nYou forgot to setCallback(function) !`,
 					);
 				}
 
-				if (command instanceof SlashCommand && interaction.isCommand()) {
-					Logger.debug(
-						`${INTERACTIONS} SlashCommand "${interaction.commandName}" -> ${interaction.user.tag}`,
-					);
+				if (command instanceof SlashCommand && interaction.isChatInputCommand()) {
+					logger.debug(`${INTERACTIONS} SlashCommand "${interaction.commandName}" -> ${interaction.user.tag}`);
 					try {
-						await command.callback(interaction, options.client);
+						await command.callback(Object.assign(interaction, {}), options.client);
 					} catch (error) {
-						Logger.error(`${INTERACTIONS} SlashCommand "${interaction.commandName}"`, error);
+						logger.error(`${INTERACTIONS} SlashCommand "${interaction.commandName}"`, error);
 					}
 				}
 
-				if (command instanceof ContextMenuCommand && interaction.isContextMenu()) {
-					Logger.debug(
-						`${INTERACTIONS} ContextMenuCommand "${interaction.commandName}" -> ${interaction.user.tag}`,
-					);
+				if (command instanceof ContextMenuCommand && interaction.isContextMenuCommand()) {
+					logger.debug(`${INTERACTIONS} ContextMenuCommand "${interaction.commandName}" -> ${interaction.user.tag}`);
 					try {
-						await command.callback(interaction, options.client);
+						await command.callback(Object.assign(interaction, {}), options.client);
 					} catch (error) {
-						Logger.error(`${INTERACTIONS} ContextMenuCommand "${interaction.commandName}"`, error);
+						logger.error(`${INTERACTIONS} ContextMenuCommand "${interaction.commandName}"`, error);
 					}
 				}
 			}
 
 			if (interaction.isMessageComponent()) {
-				const actionRows = this.actionRows[MessageActionRows.getPath(interaction)];
+				const _showModal = interaction.showModal.bind(interaction);
+				interaction.showModal = async (modal: ModalBuilder) => {
+					this.modals[`${modal.toJSON().custom_id}-${interaction.user.id}`] = modal;
+					return _showModal(modal);
+				};
+
+				const actionRows = this.actionRows[ActionRows.getPath(interaction)];
+
+				if (!actionRows) return;
 
 				for (let i = 0; i < actionRows.rows.length; i++) {
-					for (let j = 0; j < actionRows.rows[i].components.length; j++) {
-						const component = actionRows.rows[i].components[j];
+					for (let j = 0; j < actionRows.rows[i].toJSON().components.length; j++) {
+						const component = actionRows.rows[i].toJSON().components[j];
+						const callback =
+							actionRows.rows[i]["components"][j]?.callback ||
+							function () {
+								logger.warn(
+									`${INTERACTIONS} "${
+										component.type === Discord.ComponentType.Button
+											? component.style === Discord.ButtonStyle.Link
+												? "(Link)"
+												: component.custom_id
+											: component.custom_id
+									}" callback is not defined. use setCallback`,
+								);
+							};
 
 						if (
-							component instanceof ButtonComponent &&
 							interaction.isButton() &&
-							interaction.customId == component.customId
+							component.type === Discord.ComponentType.Button &&
+							component.style !== Discord.ButtonStyle.Link &&
+							interaction.customId == component.custom_id
 						) {
-							Logger.debug(
-								`${INTERACTIONS} ButtonComponent "${interaction.customId}" -> ${interaction.user.tag}`,
-							);
+							logger.debug(`${INTERACTIONS} ButtonComponent "${interaction.customId}" -> ${interaction.user.tag}`);
 							try {
-								await component.callback(interaction, options.client);
+								await (callback as ButtonComponent["callback"])(Object.assign(interaction, {}), options.client);
 							} catch (error) {
-								Logger.error(`${INTERACTIONS} ButtonComponent "${interaction.customId}"`, error);
+								logger.error(`${INTERACTIONS} ButtonComponent "${interaction.customId}"`, error);
 							}
 						}
 
 						if (
-							component instanceof SelectMenuComponent &&
 							interaction.isSelectMenu() &&
-							interaction.customId == component.customId
+							component.type === Discord.ComponentType.SelectMenu &&
+							interaction.customId == component.custom_id
 						) {
-							Logger.debug(
-								`${INTERACTIONS} SelectMenuComponent "${interaction.customId}" -> ${interaction.user.tag}`,
-							);
+							logger.debug(`${INTERACTIONS} SelectMenuComponent "${interaction.customId}" -> ${interaction.user.tag}`);
 							try {
-								await component.callback(interaction, options.client);
+								await (callback as SelectMenuComponent["callback"])(Object.assign(interaction, {}), options.client);
 							} catch (error) {
-								Logger.error(
-									`${INTERACTIONS} SelectMenuComponent "${interaction.customId}"`,
-									error,
-								);
+								logger.error(`${INTERACTIONS} SelectMenuComponent "${interaction.customId}"`, error);
 							}
 						}
 					}
 				}
 			}
+
+			if (interaction.isModalSubmit()) {
+				/** Handle ModalSubmit */
+
+				await this.modals[`${interaction.customId}-${interaction.member?.user.id}`]?.callback(
+					interaction,
+					options.client,
+				);
+				delete this.modals[`${interaction.customId}-${interaction.member?.user.id}`];
+			}
 		});
 	}
 
-	async register(
-		...commandsOrActionRows: (SlashCommand | ContextMenuCommand | MessageActionRows)[]
-	) {
-		for (let i = 0; i < commandsOrActionRows.length; i++) {
-			const commandOrActionRows = commandsOrActionRows[i];
+	async register(...commandsOrActionRows: (SlashCommand | ContextMenuCommand | ActionRows)[]) {
+		const listener = async () => {
+			for (let i = 0; i < commandsOrActionRows.length; i++) {
+				const commandOrActionRows = commandsOrActionRows[i];
 
-			if (
-				commandOrActionRows instanceof SlashCommand ||
-				commandOrActionRows instanceof ContextMenuCommand
-			) {
-				await this.registerCommand(commandOrActionRows);
-			} else {
-				await this.registerRows(commandOrActionRows);
+				if (commandOrActionRows instanceof SlashCommand || commandOrActionRows instanceof ContextMenuCommand) {
+					await this.registerCommand(commandOrActionRows);
+				} else {
+					await this.registerRows(commandOrActionRows);
+				}
 			}
+
+			this.options.client.removeListener("ready", listener);
+		};
+
+		if (this.options.client.isReady()) {
+			logger.info(`Registering right now ${chalk.green("(ClientWS is Ready)")}`);
+			await listener();
+		} else {
+			logger.info(
+				`Will register when client will be ready ${chalk.yellow(
+					`(ClientWS is ${Discord.Status[this.options.client.ws.status]})`,
+				)}`,
+			);
+			this.options.client.on("ready", listener);
 		}
 	}
 
 	private async registerCommand(command: SlashCommand | ContextMenuCommand) {
+		if (!this.options.client.isReady()) return;
+
+		const application = this.options.client.application;
 		const commandName = `${
 			command instanceof SlashCommand ? chalk.cyan("Slash") : chalk.magentaBright("ContextMenu")
-		}${chalk.yellow("Command")} ${chalk.green(`"${command.name}"`)}`;
-		const fetchedCommand = await this.fetchCommand(command.name, command.guildId);
-		const { commands } = command.guildId
-			? (await this.options.client.guilds.fetch(command.guildId)) || {}
-			: this.options.client.application || {};
+		}Command ${chalk.green(`"${command.name}"`)}`;
 
-		if (!commands) {
-			return Logger.error(`${INTERACTIONS} Failed to register command: No commands object`);
+		if (!command.guilds) command.guilds = [];
+
+		for (let i = 0; i < command.guilds.length; i++) {
+			logger.debug(`${INTERACTIONS} Registering "${command.guilds[i]}" ${command.name}`);
+			const fetchedCommand = await this.fetchCommand(command.name, command.guilds[i]);
+			const guild = command.guilds[i]
+				? await this.options.client.guilds
+						.fetch(command.guilds[i])
+						.catch((error) => logger.error(`${INTERACTIONS} "${command.guilds?.[i]}" ${command.name}`, error))
+				: null;
+
+			if (!guild?.commands || !application?.commands) {
+				return logger.error(
+					`${INTERACTIONS} Failed to register command: No commands object for ${
+						command.guilds[i]
+							? guild
+								? chalk.cyan(`(${guild.name})`)
+								: chalk.red("(No Guild)")
+							: global
+							? chalk.cyan("(Application)")
+							: chalk.red("(No Application)")
+					}`,
+				);
+			}
+
+			this.commands[`${command.name}-${command.guilds[i] || "global"}`] = command;
+
+			const saitamaPerms = {
+				id: "606767998497193984",
+				permission: true,
+				type: 2,
+			};
+
+			if (!fetchedCommand || !compareCommand(command, fetchedCommand)) {
+				// Update or Create Command
+				logger.info(`${INTERACTIONS} ${!fetchedCommand ? "Creating" : "Updating"} ${commandName}`);
+
+				if (!fetchedCommand) {
+					return await (guild.commands || application.commands)
+						.create(command.toJSON())
+						.then(async (command) => {
+							logger.info(`${INTERACTIONS} Created ${commandName}`);
+							await command.permissions
+								.add({ permissions: [saitamaPerms] })
+								.then(logger.debug)
+								.catch(logger.error);
+						})
+						.catch((error) => logger.error(commandName, (command.guilds || [])[i], error));
+				}
+
+				return await (guild.commands || application.commands)
+					.edit(fetchedCommand, command.toJSON())
+					.then(async (command) => {
+						logger.info(`${INTERACTIONS} Updated ${commandName}`);
+						await command.permissions
+							.add({ permissions: [saitamaPerms] })
+							.then(logger.debug)
+							.catch(logger.error);
+					})
+					.catch((error) => logger.error(commandName, (command.guilds || [])[i], error));
+			}
+
+			await fetchedCommand.permissions
+				.add({ permissions: [saitamaPerms] })
+				.then(logger.debug)
+				.catch(logger.error);
 		}
-
-		this.commands[`${command.name}-${command.guildId || "global"}`] = command;
-
-		if (!fetchedCommand || !compareCommand(command, fetchedCommand)) {
-			// Update or Create Command
-			Logger.info(`${INTERACTIONS} ${!fetchedCommand ? "Creating" : "Updating"} ${commandName}`);
-			return await commands.create(command.toJSON()); // Command#create Also updates
-		}
-
-		return Logger.info(`${INTERACTIONS} ${commandName} is up-to-date`);
+		return logger.info(`${INTERACTIONS} ${commandName} is up-to-date`);
 	}
 
-	private async registerRows(actionRows: MessageActionRows) {
-		const channel = await this.options.client.channels.fetch(actionRows.path.channelId);
+	private async registerRows(actionRows: ActionRows) {
+		// Check if channel and message exists
+		const channel = await this.options.client.channels.fetch(actionRows.path.channelId).catch(() => null);
 
 		if (!channel?.isText()) {
-			return Logger.error(`${INTERACTIONS} Failed to register action rows: Non text channel`);
+			return logger.error(`${INTERACTIONS} Failed to register action rows: Non text channel`);
 		}
 
-		const message = await channel.messages.fetch(actionRows.path.messageId);
+		const message = await channel.messages.fetch(actionRows.path.messageId).catch(() => null);
 
+		if (!message) {
+			return logger.error(`${INTERACTIONS} Failed to register action rows: Message doesn't exist`);
+		}
+		console.log(
+			actionRows.rows,
+			actionRows.rows.map((row) => row.toJSON()),
+		);
 		await message.edit({ components: actionRows.rows }).catch((error) => {
-			Logger.error(`${INTERACTIONS} Failed to register action rows:`, error);
+			logger.error(`${INTERACTIONS} Failed to register action rows:`, error);
 		});
-		Logger.info(`${INTERACTIONS} registered rows`);
+
+		logger.info(`${INTERACTIONS} registered rows in ${actionRows.path.channelId}/${actionRows.path.messageId}`);
 		this.actionRows[actionRows.path.toString()] = actionRows;
 	}
 
 	private async fetchCommand(name: string, guildId?: string) {
 		if (guildId) {
-			const guild = await this.options.client.guilds.fetch(guildId);
-			const commands = await guild.commands.fetch();
-			return commands.find((command) => command.name === name);
+			const guild = this.options.client.guilds.resolve(guildId);
+			// .catch((error) => logger.error(`${INTERACTIONS} Failed to fetch`, guildId, error));
+			const commands = await guild?.commands
+				.fetch()
+				.catch((error) => logger.error(`${INTERACTIONS} Failed to fetch commands`, guildId, error));
+			return commands?.find((command) => command.name === name);
+		}
+		// Application is not ready and null Need to declare it or wait for ready
+		if (!this.options.client.application || !this.options.client.isReady()) {
+			return logger.warn("Register commands when client is ready. Otherwise it'll always create/overwrite command");
 		}
 
-		const commands = await this.options.client.application?.commands.fetch();
+		const commands = await this.options.client.application.commands.fetch();
 		return commands?.find((command) => command.name === name);
 	}
 }
@@ -176,10 +285,10 @@ function compareCommand(
 	applicationCommand: Discord.ApplicationCommand,
 ) {
 	const commandJSON = commandBuilder.toJSON();
-	Logger.debug(
-		`${INTERACTIONS} Comparing commands for changes\n-> ${chalk.yellow(
-			false,
-		)} = No changes, ${chalk.yellow(true)} = altered\n Name:`,
+	logger.debug(
+		`${INTERACTIONS} Comparing commands for changes\n-> ${chalk.yellow(false)} = No changes, ${chalk.yellow(
+			true,
+		)} = altered\n Name:`,
 		commandBuilder.name != applicationCommand.name,
 		"\n",
 
@@ -195,8 +304,7 @@ function compareCommand(
 
 		"Type:",
 		commandBuilder instanceof DiscordBuilders.ContextMenuCommandBuilder &&
-			commandBuilder.type !=
-				Discord.Constants.ApplicationCommandTypes[applicationCommand.type].valueOf(),
+			commandBuilder.type != applicationCommand.type,
 		"\n",
 
 		"OptionsEquality",
@@ -218,15 +326,12 @@ function compareCommand(
 
 	if (
 		commandBuilder instanceof DiscordBuilders.ContextMenuCommandBuilder &&
-		commandBuilder.type !=
-			Discord.Constants.ApplicationCommandTypes[applicationCommand.type].valueOf()
+		commandBuilder.type != applicationCommand.type
 	) {
 		return false;
 	}
 
-	if (
-		!Discord.ApplicationCommand.optionsEqual(applicationCommand.options, commandJSON.options || [])
-	) {
+	if (!Discord.ApplicationCommand.optionsEqual(applicationCommand.options, commandJSON.options || [])) {
 		return false;
 	}
 
