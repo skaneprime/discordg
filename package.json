@@ -1,11 +1,12 @@
 {
   "name": "discord",
-  "version": "1.0.0",
+  "version": "0.4.3",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "npm run pretty & dingir-win.exe build --debug -d ./src/index.ts ./build/discord.dg -v 0.9.6",
-    "test": "dingir-win.exe run ./test/index.ts",
+    "build": "npm run pretty & dingir-win.exe build --debug -d ./src/index.ts ./build/discord.dg -v 0.4.4 -e discord.js@dev typeorm",
+    "publish": "npm run pretty & dingir-win.exe publish ./build/discord@0.4.4.dg ./build/discord@0.4.4.d.ts --debug -n discord -v 0.4.4",
+    "test": "dingir-win.exe run ./test/index.ts -P",
     "pretty": "prettier --write src/**/*.ts",
     "eslint": "eslint . --ext .ts"
   },
@@ -13,15 +14,15 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@discordjs/builders": "^0.12.0",
-    "@discordjs/rest": "^0.3.0",
+    "@discordjs/builders": "^0.13.0-dev.1648515278-ac4bc3a",
     "@types/json-stable-stringify": "^1.0.33",
     "chalk": "^4.1.2",
     "chokidar": "^3.5.3",
     "cli-highlight": "^2.1.11",
-    "discord.js": "^13.6.0",
+    "discord.js": "^14.0.0-dev.1648515273-ac4bc3a",
     "eventemitter3": "^4.0.7",
     "json-stable-stringify": "^1.0.1",
+    "reflect-metadata": "^0.1.13",
     "typeorm": "^0.2.41"
   },
   "devDependencies": {
