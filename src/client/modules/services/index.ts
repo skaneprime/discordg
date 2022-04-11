@@ -1,23 +1,21 @@
 import { Awaitable } from "discord.js";
 import { Client } from "../..";
 
-import { Plugins } from "./plugins";
+import { Plugin, Plugins } from "./plugins";
 import { Interactions } from "./interactions";
 
 /** @public */
-export type ServiceArgs<T extends ServiceObject = ServiceObject> = [Client<T>];
+export type ServiceArgs<T extends ServiceObject = ServiceObject> = [Client<T, false>];
 /** @public */
-export type ClassService = Dingir.utils.class.Any<ServiceArgs> & {
+export type ClassService = Dingir.Utils.Class.Any<ServiceArgs> & {
 	Invoke?: (...args: ServiceArgs) => Awaitable<unknown>;
 };
 /** @public */
-export type FunctionService = Dingir.utils.function.Any<ServiceArgs>;
+export type FunctionService = Dingir.Utils.Function.Any<ServiceArgs>;
 /** @public */
 export type Service = FunctionService | ClassService;
 /** @public */
-export type ServiceResult<T extends Service> = Dingir.utils.promise.Result<
-	Dingir.utils.types.ReturnOrInstance<T>
->;
+export type ServiceResult<T extends Service> = Dingir.Utils.Promise.Result<Dingir.Utils.Types.ReturnOrInstance<T>>;
 /** @public */
 export type ServiceObject = { [key: string]: Service };
 /** @public */
@@ -30,9 +28,10 @@ export type Module<T extends ServiceObject> = {
 /** @public */
 export async function Module<T extends ServiceObject>(
 	services: T,
-	client: Client<T>,
+	client: Client<T, false>,
 	plugins: {
 		folder: string;
+		plugins: Plugin<T>[];
 	},
 ) {
 	const servicesInvoked = {} as { [K in keyof T]: ServiceResult<T[K]> };
@@ -40,14 +39,12 @@ export async function Module<T extends ServiceObject>(
 	for (const key in services) {
 		const service = services[key];
 
-		if (Dingir.utils.class.isClass(service)) {
+		if (Dingir.Utils.Class.isClass(service)) {
 			const ClassService = service as ClassService;
-			servicesInvoked[key] = ((await ClassService.Invoke?.call({}, client as Client)) ||
-				new ClassService(client as Client)) as ServiceResult<T[typeof key]>;
+			servicesInvoked[key] = ((await ClassService.Invoke?.call({}, client)) ||
+				new ClassService(client)) as ServiceResult<T[typeof key]>;
 		} else {
-			servicesInvoked[key] = (await (service as FunctionService)(
-				client as Client,
-			)) as ServiceResult<T[typeof key]>;
+			servicesInvoked[key] = (await (service as FunctionService)(client)) as ServiceResult<T[typeof key]>;
 		}
 	}
 
@@ -56,6 +53,7 @@ export async function Module<T extends ServiceObject>(
 		plugins: new Plugins<T>({
 			client,
 			folder: plugins.folder,
+			plugins: plugins.plugins,
 		}),
 		interactions: new Interactions({ client }),
 	};
